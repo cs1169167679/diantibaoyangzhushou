@@ -1,6 +1,6 @@
 {
   "appId": "com.example.elevator",
-  "appName": "电梯保养",
+  "appName": "嘉德电梯保养",
   "webDir": "www",
   "server": {
     "androidScheme": "https"
