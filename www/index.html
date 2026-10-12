@@ -19,6 +19,10 @@ header{position:sticky;top:0;z-index:30;background:linear-gradient(135deg,#1565c
 .chip b{font-size:15px;color:#1c2430}
 .dot{width:8px;height:8px;border-radius:50%;display:inline-block}
 .dot.g{background:var(--green)}.dot.o{background:var(--orange)}.dot.r{background:var(--red)}
+/* 搜索框 */
+.search-bar{padding:0 16px 4px}
+.search-bar input{width:100%;padding:10px 14px;border:1px solid #e2e8ef;border-radius:12px;font-size:14px;background:#fff;color:#1c2430;-webkit-appearance:none;box-sizing:border-box}
+.search-bar input:focus{outline:none;border-color:#1565c0}
 main{padding:10px 16px 16px;display:flex;flex-direction:column;gap:12px}
 .card{background:#fff;border-radius:16px;padding:14px;box-shadow:0 2px 10px rgba(16,42,67,.07);border-left:5px solid #ccc}
 .card.lv-green{border-left-color:var(--green)}
@@ -32,6 +36,7 @@ main{padding:10px 16px 16px;display:flex;flex-direction:column;gap:12px}
 .head-right{display:flex;gap:2px;flex:0 0 auto}
 .icon-btn{border:0;background:none;font-size:15px;padding:4px 6px;border-radius:8px;color:#9aa5b1;font-family:inherit}
 .icon-btn:active{background:#f0f3f7}
+.card.lv-overdue .icon-btn{color:#e53935}
 .warn{color:var(--red);font-size:18px;line-height:1;animation:pulse 1.1s ease-in-out infinite}
 @keyframes pulse{0%,100%{transform:scale(1);opacity:1}50%{transform:scale(1.3);opacity:.6}}
 .check{color:var(--green);font-size:18px;font-weight:900}
@@ -54,6 +59,13 @@ main{padding:10px 16px 16px;display:flex;flex-direction:column;gap:12px}
 .empty-ico{font-size:46px;margin-bottom:14px}
 .empty-t{font-size:16px;font-weight:600;color:#5a6672;margin-bottom:8px}
 .empty-s{font-size:13px;line-height:1.7}
+/* 月份分组样式 */
+.month-group{margin-bottom:6px}
+.month-header{display:flex;align-items:center;justify-content:space-between;padding:6px 4px 8px;font-size:14px;font-weight:700;color:#1565c0}
+.month-title{position:relative;padding-left:12px}
+.month-title::before{content:'';position:absolute;left:0;top:50%;transform:translateY(-50%);width:4px;height:14px;border-radius:2px;background:#1565c0}
+.month-count{font-size:12px;font-weight:500;color:#8b96a1;background:#eef3f9;border-radius:10px;padding:2px 9px}
+.month-body{display:flex;flex-direction:column;gap:12px}
 .tabbar{position:fixed;left:0;right:0;bottom:0;z-index:50;display:flex;background:rgba(255,255,255,.97);border-top:1px solid var(--line);padding-bottom:env(safe-area-inset-bottom);backdrop-filter:blur(10px)}
 .tabbar button{flex:1;border:0;background:none;padding:9px 4px 10px;display:flex;flex-direction:column;align-items:center;gap:2px;font-size:11.5px;color:#8b96a1;font-family:inherit;position:relative}
 .tabbar button.active{color:#1565c0;font-weight:700}
@@ -90,6 +102,12 @@ main{padding:10px 16px 16px;display:flex;flex-direction:column;gap:12px}
 </header>
 
 <div class="summary" id="summary"></div>
+
+<!-- 搜索框 -->
+<div class="search-bar">
+  <input id="searchInput" type="search" placeholder="🔍 搜索电梯名称..." autocomplete="off">
+</div>
+
 <main id="list"></main>
 
 <nav class="tabbar">
@@ -135,6 +153,7 @@ const uid = () => Date.now().toString(36) + Math.random().toString(36).slice(2, 
 const esc = s => String(s).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 const WEEK = ['日','一','二','三','四','五','六'];
 const COLOR = { green:'#2e9e5b', orange:'#f39c12', red:'#e53935', overdue:'#b71c1c' };
+const ADMIN_PASSWORD = '19940926'; // 管理密码
 
 const KEY = 'elev_maint_v1';
 let state = { items: [], logs: [] };
@@ -225,8 +244,7 @@ function viewOverdue(items) {
       <div class="card-head">
         <div class="title"><span class="warn">⚠</span><span class="name">${esc(it.name)}</span></div>
         <div class="head-right">
-          <button class="icon-btn" data-act="edit">✎</button>
-          <button class="icon-btn" data-act="del">🗑</button>
+          <button class="icon-btn" data-act="del" data-protected="1">🗑</button>
         </div>
       </div>
       <div class="date-line"><span>上次 <b>${it.lastDate}</b></span><span class="arrow">→</span><span>应保养 <b>${s.nextDate}</b></span></div>
@@ -243,18 +261,44 @@ function viewOverdue(items) {
   }).join('');
 }
 
-function viewDone() {
-  if (!state.logs.length) return emptyBox('📋', '暂无完成记录', '点击电梯卡片上的「提交完成」后会记录在这里');
-  const logs = [...state.logs].sort((a, b) => b.doneDate.localeCompare(a.doneDate) || (b.createdAt || 0) - (a.createdAt || 0));
-  return logs.map(l => `
-    <div class="card lv-done" data-logid="${l.id}">
-      <div class="card-head">
-        <div class="title"><span class="check">✓</span><span class="name">${esc(l.name)}</span></div>
-        <div class="head-right"><button class="icon-btn" data-act="delLog">🗑</button></div>
-      </div>
-      <div class="date-line"><span>完成 <b>${l.doneDate}</b></span><span class="arrow">→</span><span>下次 <b>${addDays(l.doneDate, l.cycle || 15)}</b></span></div>
-      <div class="muted">上次保养日期：${l.fromDate}</div>
-    </div>`).join('');
+function viewDone(logs) {
+  if (!logs.length) return emptyBox('📋', '暂无完成记录', '点击电梯卡片上的「提交完成」后会记录在这里');
+
+  const groups = {};
+  logs.forEach(l => {
+    const ym = l.doneDate.slice(0, 7);
+    if (!groups[ym]) groups[ym] = [];
+    groups[ym].push(l);
+  });
+
+  const months = Object.keys(groups).sort((a, b) => b.localeCompare(a));
+
+  return months.map(ym => {
+    const [y, m] = ym.split('-');
+    const monthTitle = `${y}年${parseInt(m, 10)}月`;
+    const list = groups[ym].sort((a, b) =>
+      b.doneDate.localeCompare(a.doneDate) || (b.createdAt || 0) - (a.createdAt || 0)
+    );
+
+    const itemsHTML = list.map(l => `
+      <div class="card lv-done" data-logid="${l.id}">
+        <div class="card-head">
+          <div class="title"><span class="check">✓</span><span class="name">${esc(l.name)}</span></div>
+          <div class="head-right"><button class="icon-btn" data-act="delLog">🗑</button></div>
+        </div>
+        <div class="date-line"><span>完成 <b>${l.doneDate}</b></span><span class="arrow">→</span><span>下次 <b>${addDays(l.doneDate, l.cycle || 15)}</b></span></div>
+        <div class="muted">上次保养日期：${l.fromDate}</div>
+      </div>`).join('');
+
+    return `
+      <div class="month-group">
+        <div class="month-header">
+          <span class="month-title">${monthTitle}</span>
+          <span class="month-count">${list.length} 条</span>
+        </div>
+        <div class="month-body">${itemsHTML}</div>
+      </div>`;
+  }).join('');
 }
 
 function setBadge(id, n, cls) {
@@ -266,6 +310,8 @@ function setBadge(id, n, cls) {
 }
 
 function render() {
+  const kw = ($('#searchInput')?.value || '').trim().toLowerCase();
+
   const normal = [], overdue = [];
   state.items.forEach(it => {
     it._s = statusOf(it);
@@ -273,6 +319,17 @@ function render() {
   });
   normal.sort((a, b) => b._s.elapsed - a._s.elapsed);
   overdue.sort((a, b) => b._s.elapsed - a._s.elapsed);
+
+  // 搜索过滤
+  let displayNormal = normal;
+  let displayOverdue = overdue;
+  let displayLogs = state.logs;
+
+  if (kw) {
+    displayNormal = normal.filter(it => it.name.toLowerCase().includes(kw));
+    displayOverdue = overdue.filter(it => it.name.toLowerCase().includes(kw));
+    displayLogs = state.logs.filter(l => l.name.toLowerCase().includes(kw));
+  }
 
   const redCount = normal.filter(i => i._s.level === 'red').length;
   $('#summary').innerHTML = `
@@ -285,9 +342,16 @@ function render() {
   setBadge('b-done', state.logs.length, 'gray');
 
   const list = $('#list');
-  if (currentTab === 'normal') list.innerHTML = viewNormal(normal);
-  else if (currentTab === 'overdue') list.innerHTML = viewOverdue(overdue);
-  else list.innerHTML = viewDone();
+  if (currentTab === 'normal') {
+    if (kw && displayNormal.length === 0) list.innerHTML = emptyBox('🔍', '没有找到匹配的电梯', '请更换关键词');
+    else list.innerHTML = viewNormal(displayNormal);
+  } else if (currentTab === 'overdue') {
+    if (kw && displayOverdue.length === 0) list.innerHTML = emptyBox('🔍', '没有找到匹配的电梯', '请更换关键词');
+    else list.innerHTML = viewOverdue(displayOverdue);
+  } else {
+    if (kw && displayLogs.length === 0) list.innerHTML = emptyBox('🔍', '没有找到匹配的记录', '请更换关键词');
+    else list.innerHTML = viewDone(displayLogs);
+  }
 }
 
 function doComplete(id) {
@@ -306,7 +370,15 @@ function doComplete(id) {
 function doDelete(id) {
   const it = state.items.find(x => x.id === id);
   if (!it) return;
-  if (!confirm(`确定删除「${it.name}」？\n（历史完成记录会保留）`)) return;
+  const s = statusOf(it);
+  if (s.level === 'overdue') {
+    const pwd = prompt('该电梯已超期，删除需要管理密码：');
+    if (pwd === null) return;
+    if (pwd !== ADMIN_PASSWORD) { alert('密码错误，无法删除'); return; }
+    if (!confirm(`密码正确。确定删除超期电梯「${it.name}」？`)) return;
+  } else {
+    if (!confirm(`确定删除「${it.name}」？\n（历史完成记录会保留）`)) return;
+  }
   state.items = state.items.filter(x => x.id !== id);
   save(); render(); toast('已删除');
 }
@@ -334,7 +406,14 @@ $('#list').addEventListener('click', e => {
   const act = btn.dataset.act;
   const card = btn.closest('.card');
   if (act === 'done') doComplete(card?.dataset.id);
-  if (act === 'edit') doEdit(card?.dataset.id);
+  if (act === 'edit') {
+    const it = state.items.find(x => x.id === card?.dataset.id);
+    if (it && statusOf(it).level === 'overdue') {
+      alert('超期电梯不能修改日期，请先提交完成');
+      return;
+    }
+    doEdit(card?.dataset.id);
+  }
   if (act === 'del') doDelete(card?.dataset.id);
   if (act === 'delLog') doDeleteLog(card?.dataset.logid);
 });
@@ -376,6 +455,9 @@ document.querySelectorAll('.tabbar button').forEach(b => {
     window.scrollTo({ top: 0, behavior: 'smooth' });
   });
 });
+
+// 搜索框输入实时过滤
+$('#searchInput').addEventListener('input', render);
 
 let toastTimer;
 function toast(msg) {
